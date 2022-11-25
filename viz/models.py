@@ -11,7 +11,7 @@ class Author( models.Model ):
         return self.first_name + " " + self.last_name
 
 class Script( models.Model ):
-    author = models.ForeignKey( Author )
+    author = models.ForeignKey( Author, on_delete=models.PROTECT )
     title = models.CharField( max_length=100 )
     draft = models.PositiveIntegerField()
     creation_date = models.DateTimeField( auto_now_add=True )

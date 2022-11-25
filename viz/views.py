@@ -78,7 +78,7 @@ def upload_script( request ):
             script_file = request.FILES['script']
 
             for filename, filex in request.FILES.iteritems():
-                print request.FILES[filename].name
+                print( request.FILES[filename].name )
 
             script_id = process_script( script_file, title, draft_number )
 
