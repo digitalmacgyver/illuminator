@@ -113,6 +113,13 @@ WSGI_APPLICATION = 'illuminator.wsgi.application'
     # Don't forget to use absolute paths, not relative paths.
 #)
 
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'APP_DIRS': True,
+    },
+    ]
+
 INSTALLED_APPS = (
     #'django.contrib.auth',
     #'django.contrib.contenttypes',
