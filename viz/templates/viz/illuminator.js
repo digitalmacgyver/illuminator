@@ -1,9 +1,15 @@
 "use strict";
 
 // Next up: 
-//6) Put up drop down with all films we know.
-//   
-//7) Upload text
+//
+// 1) Show noun presence box by scene.
+//   - Horizontal scale by line number
+//   - Filtered by standard rules
+//   - Mouse over brings up text
+//   - Maybe different colors or icons for types?
+// - Draw an arbitrary scene.
+// - Make the scene actually select it.
+//
 //
 //8) Upload PDF
 //
@@ -147,11 +153,22 @@ function illuminate() {
     var g_force = undefined;
 
     ///////////////////////////////////////////////////////
+    // Configuration for Noun Scene Presence Details
+    ///////////////////////////////////////////////////////
+    var nspd_width = 500;
+    var nspd_height = 300;
+
+    // The contents of presence_sn[current_scene][current_noun]
+    // filtered by whatever our selections are.  Set in
+    // refresh_presence_display_data.
+    var nsp_details = [];
+    
+    ///////////////////////////////////////////////////////
     // Prepare global data structures.
     ///////////////////////////////////////////////////////
 
-    // Compute the relelvant data based upon our present selections.
-    refresh_script_display_data( presence_sn, scenes, script ); 
+    // Compute the relevant data based upon our present selections.
+    refresh_presence_display_data( presence_sn, scenes, script ); 
     
     ///////////////////////////////////////////////////////
     // Render our page
@@ -161,6 +178,7 @@ function illuminate() {
     draw_script_viz();
     draw_relation_viz();
     draw_scene_graph();
+    draw_noun_scene_presence_details();
 
     // Register events for form data.
     $( "#top_n" ).on( 'change', update_top_n );
@@ -263,6 +281,7 @@ function illuminate() {
 	    .on( 'click', function( d, i ) {
 		selection.current_scene = i+1; 
 		update_scene_graph(); 
+		update_noun_scene_presence_details();
 	    } );
 
 	column.attr( 'class', 'column' )
@@ -283,6 +302,7 @@ function illuminate() {
 			 update_scene_graph(); 
 			 refresh_relation_display_data( interaction_sn, scenes, script );
 			 update_relation_viz();
+			 update_noun_scene_presence_details();
 		     } )
 		.on( 'mouseover', function ( d, i ) { 
 		    d3.select( '#sv_col' + i ).attr( 'class', 'highlighted' ); 
@@ -337,6 +357,8 @@ function illuminate() {
 
 	if ( current_noun ) {
 	    $( "#relation_title" ).text( current_noun.titleCase() + "'s Relationships:" );
+	} else {
+	    $( "#relation_title" ).text( "Relationships (click a box above to select a subject)" )
 	}
 
 	d3.select( '#relation_viz' )
@@ -408,6 +430,7 @@ function illuminate() {
 	    .on( 'click', function( d, i ) {
 		selection.current_scene = i+1; 
 		update_scene_graph(); 
+		update_noun_scene_presence_details();
 	    } );
 
 
@@ -423,7 +446,12 @@ function illuminate() {
 	    cell.enter()
 		.append( 'rect' )
 		.style( 'fill-opacity', 0 )
-		.on( 'click', function ( d, i ) { selection.current_noun = row.name; selection.current_scene = i+1; update_scene_graph(); } )
+		.on( 'click', function ( d, i ) { 
+		    selection.current_noun = row.name; 
+		    selection.current_scene = i+1; 
+		    update_scene_graph(); 
+		    update_noun_scene_presence_details();
+		} )
 		.on( 'mouseover', function ( d, i ) { 
 		    d3.select( '#sv_col' + i ).attr( 'class', 'highlighted' ); 
 		    d3.select( '#rel_col' + i ).attr( 'class', 'highlighted' ); 
@@ -606,8 +634,8 @@ function illuminate() {
 	    .remove();
 
 	// Order here is important - we want the nodes to exist so we
-	// can have a consistent way of refering to their endpoints
-	// for the links below.  g_force.start converds our nodes data
+	// can have a consistent way of referring to their endpoints
+	// for the links below.  g_force.start converts our nodes data
 	// structure from having indecies to references to nodes.
 	g_force.start();
 
@@ -691,7 +719,7 @@ function illuminate() {
 
     function update_links( links, new_links, nodes ) {
 	// We seek to uniquely identify a link based on the names of
-	// it's endpoints, this avoids unintentional homynyms where,
+	// its endpoints, this avoids unintentional homonyms where,
 	// for example, we have name A, AB, BC, and C, where we could
 	// get confused about a A-BC and a AB-C link.
 	var sep = "-unlikely to\ncollide-";
@@ -739,12 +767,109 @@ function illuminate() {
     }
 
     ///////////////////////////////////////////////////////
+    // Noun Presence Details
+    ///////////////////////////////////////////////////////
+
+    function draw_noun_scene_presence_details() {
+	create_noun_scene_presence_details();
+	update_noun_scene_presence_details();
+    }
+
+    function create_noun_scene_presence_details() {
+	var svg = d3.select( '#noun_scene_presence_details_div' )
+	    .append( 'svg' )
+	    .attr( 'id', 'noun_scene_presence_details_viz' )
+	    .attr( 'width', nspd_width )
+	    .attr( 'height', nspd_height )
+	    .append( 'g' );
+	//	    .attr( 'transform', 'translate(' + margin.left + ',' + margin.top + ')' );
+    }
+
+    function update_noun_scene_presence_details() {
+	// Populate nps_data with the latest data from presence_ns
+	// about the current noun and scene.
+	refresh_noun_scene_presence_details();
+
+	d3.select( '#noun_scene_presence_details_viz' )
+	    .transition().duration( duration )
+	    .attr( 'width', nspd_width )
+	    .attr( 'height', nspd_height );
+	
+	var svg = d3.select( '#noun_scene_presence_details_viz g' );
+
+	// DEBUG - Add a list of vertical bars for each presence in the scene.
+
+	// DEBUG - Add event handlers so bars are redrawn when new
+	// selectors are entered.
+
+	// nsp_details is the filtered set of presence objects for our
+	// current context, [ { presence obj }, ... ], presence obj is
+	// name, noun_type, presence_type, where : { line_no, page_no,
+	// scene_id }
+
+	var x = d3.scale.linear()
+	    .domain( [0, scene_lines[selection.current_scene - 1] ] )
+	    .range( [0, nspd_width] );
+
+	var line = svg.selectAll( '.line' )
+	    .data( nsp_details, function ( d ) { return d.where.line_no; } );
+
+//	column.enter()
+//	    .append( 'g' )
+//	    .append( 'text' )
+//	    .attr( 'x', function ( d, i ) { return x(scene_lines[i]) / 2; } )
+//	    .attr( 'y', box_height / 2 )
+//	    .attr( 'text_anchor', 'middle' )
+//	    .attr( 'font-size', '.5em' )
+//	    .text( function ( d, i ) { return i+1; } )
+//	    .attr( 'id', function ( d, i ) { return 'sv_col'+i; } )
+//	    .attr( 'class', 'subtle' )
+//	    .on( 'mouseover', function ( d, i ) { 
+//		d3.select( '#sv_col' + i ).attr( 'class', 'highlighted' ); 
+//		d3.select( '#rel_col' + i ).attr( 'class', 'highlighted' ); 
+//	    } )
+//	    .on( 'mouseout', function ( d, i ) { 
+//		d3.select( '#sv_col' + i ).attr( 'class', 'subtle' ); 
+//		d3.select( '#rel_col' + i ).attr( 'class', 'subtle' ); 
+//	    } )
+//	    .on( 'click', function( d, i ) {
+//		selection.current_scene = i+1; 
+//		update_scene_graph(); 
+//	    } );
+
+//	column.attr( 'class', 'column' )
+//	    .attr( 'transform', function ( d, i ) { return 'translate(' + x(d+i*x_padding) + ', 0)'; } );
+
+	line.enter()
+	    .append( 'rect' )
+	    .attr( 'class', 'line' )
+	    .style( 'fill-opacity', 1 )
+	    .attr( 'x', function( d, i ) { 
+		console.log( 'd is', d )
+		console.log( 'Line number is', d.where.line_no )
+		console.log( 'Current scene is', selection.current_scene )
+		console.log( 'Current scene first line is', scene_first[selection.current_scene - 1 ] )
+		return x( d.where.line_no - scene_first[selection.current_scene - 1] );
+	    } )
+	    .attr( 'width', function ( d, i ) { return 2; } )
+	    .attr( 'height', nspd_height );
+
+	line.exit().remove();
+    }
+
+    ///////////////////////////////////////////////////////
     // Event handlers and data processing.
     ///////////////////////////////////////////////////////
 
     function update_noun_types( event ) {
 	selection['noun_types'][event.target.value] = event.target.checked;
-	refresh_script_display_data( presence_sn, scenes, script );
+
+	// If we just excluded the 'current_noun' by selection, unset the current noun.
+	if ( selection.current_noun && !( selection['noun_types'][noun_types[selection.current_noun]] ) ) {
+	    selection.current_noun = false;
+	}
+
+	refresh_presence_display_data( presence_sn, scenes, script );
 	refresh_relation_display_data( interaction_sn, scenes, script );
 	update_script_viz();
 	update_scene_graph();
@@ -753,7 +878,7 @@ function illuminate() {
 
     function update_presence_types( event ) {
 	selection['presence_types'][event.target.value] = event.target.checked;
-	refresh_script_display_data( presence_sn, scenes, script );
+	refresh_presence_display_data( presence_sn, scenes, script );
 	refresh_relation_display_data( interaction_sn, scenes, script );	
 	update_script_viz();
 	update_scene_graph();
@@ -772,14 +897,14 @@ function illuminate() {
 	if ( new_n && ( new_n > 0 ) ) {
 	    selection['top_n'] = new_n;
 	}
-	refresh_script_display_data( presence_sn, scenes, script );
+	refresh_presence_display_data( presence_sn, scenes, script );
 	refresh_relation_display_data( interaction_sn, scenes, script );
 	sv_height = ( Math.min( selection['top_n'], presence.length ) + 1 )*( box_height + y_padding );
 	update_script_viz();
 	update_relation_viz();
     }
 
-    function refresh_script_display_data( presence_sn, scenes, script ) {
+    function refresh_presence_display_data( presence_sn, scenes, script ) {
 	// Scenes sorted in ascending order.
 	var scene_ids = d3.keys( scenes['scenes'] );
 	scene_ids = scene_ids.sort( function ( a, b ) { return a-b; } )
@@ -815,6 +940,13 @@ function illuminate() {
 	// Pare the list down to those that match our desired types.
 	noun_ids = noun_ids.filter( function ( n ) { return selection['noun_types'][noun_types[n]]; } );
 
+	// DEBUG REMOVE add stuff here to populate nsp_details.
+//	var current_noun = selection.current_noun;
+//	if ( current_noun && !selection['noun_types'][noun_types[current_noun]] ) {
+//	    console.log( "ERROR: current noun", current_noun, "is not present in our selection of nouns." );
+//	}
+//	var current_scene = selection.current_scene;
+
 	presence = noun_ids.map( function ( name ) {
 	    return {
 		'name': name,
@@ -827,8 +959,13 @@ function illuminate() {
 				    function ( p ) {
 					return selection['presence_types'][p['presence_type']];
 				    }
-				).length;
-				return appear;
+				)
+// DEBUG - Remove
+//				if ( current_noun == name && current_scene == scene_id ) {
+//				    console.log( "Found match for", name, " ", scene_id, appear );
+//				    nsp_details = appear;
+//				}
+				return appear.length;
 			    } else {
 				return 0;
 			    }
@@ -846,6 +983,23 @@ function illuminate() {
 
 	max_presence_density = 0;
 	refresh_max_presence_density( presence );
+    }
+
+    // Called when we select a new noun or scene, or otherwise alter
+    // selection criteria in a way that could cause us to have altered
+    // data in noun_scene_presence_details.
+    function refresh_noun_scene_presence_details( ) { 
+	var current_noun = selection.current_noun;
+	var current_scene = selection.current_scene;
+
+	if ( ( current_scene in presence_sn ) && ( current_noun in presence_sn[current_scene] ) ) {
+	    nsp_details = presence_sn[current_scene][current_noun].filter( 
+		function( p ) { 
+		    return selection['presence_types'][p['presence_type']]; 
+		} );
+	} else {
+	    console.log( "Current scene and noun not present in presence_sn.  Scene:", current_scene, "Noun:", current_noun );
+	}
     }
 
     function refresh_max_presence_density( presence ) {
