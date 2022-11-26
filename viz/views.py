@@ -63,7 +63,7 @@ def script_data( request, script_id, data_structure ):
     elif data_structure == 'interaction_sn':
         result = s.interaction_sn
 
-    return HttpResponse( result, mimetype="application/json" )
+    return HttpResponse( result, content_type="application/json" )
 
 '''
 def upload_script( request ):
